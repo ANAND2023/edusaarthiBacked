@@ -24,6 +24,10 @@ app.use('/api/upload', require('./routes/upload'));
 app.use('/api/counsellor', require('./routes/counsellor'));
 app.use('/api/staff', require('./routes/staff'));
 
+app.get('/', (req, res) => {
+  res.send('EduSaarthi API is running 🚀');
+});
+
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -32,7 +36,7 @@ const startServer = async () => {
     await connectDB();
     
     // Sync Database
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();
     console.log('Database synced successfully');
 
     // Seed Admin User if not exists
