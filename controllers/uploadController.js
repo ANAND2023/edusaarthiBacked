@@ -36,7 +36,8 @@ exports.uploadFile = async (req, res) => {
     }
 
     // Return the relative path that can be used to access the file
-    const relativePath = `/uploads/${type}/${finalFilename}`;
+    const baseUrl = process.env.BASE_URL || "https://api.digitalvidyasaarthi.com";
+    const relativePath = `${baseUrl}/uploads/${type}/${finalFilename}`;
 
     res.json({
       message: 'File uploaded successfully',
