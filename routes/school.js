@@ -15,6 +15,10 @@ router.get('/profile', auth, schoolOnly, schoolController.getProfile);
 // @desc    Update school profile
 router.put('/profile', auth, schoolOnly, schoolController.updateProfile);
 
+// @route   GET /api/school/find-teachers
+// @desc    Find teachers
+router.get('/find-teachers', auth, schoolOnly, schoolController.getNearTeachers);
+
 // @route   POST /api/school/post-job
 // @desc    Post a new job
 router.post('/post-job', auth, schoolOnly, schoolController.postJob);

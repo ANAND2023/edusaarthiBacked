@@ -36,7 +36,7 @@ const startServer = async () => {
     await connectDB();
     
     // Sync Database
-    await sequelize.sync();
+    await sequelize.sync({ alter: true });
     console.log('Database synced successfully');
 
     // Seed Admin User if not exists

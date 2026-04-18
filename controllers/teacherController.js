@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 
 // Update Teacher Profile
 exports.updateProfile = async (req, res) => {
-    const { full_name, profile_pic, resume_url, skills, experience, bio, linkedin_profile, whatsapp_no, previous_history } = req.body;
+    const { full_name, profile_pic, resume_url, skills, experience, bio, linkedin_profile, whatsapp_no, previous_history, pincode, location } = req.body;
     const user_id = req.user.id;
 
     try {
@@ -19,6 +19,8 @@ exports.updateProfile = async (req, res) => {
             if (linkedin_profile !== undefined) teacher.linkedin_profile = linkedin_profile;
             if (whatsapp_no !== undefined) teacher.whatsapp_no = whatsapp_no;
             if (previous_history !== undefined) teacher.previous_history = previous_history;
+            if (pincode !== undefined) teacher.pincode = pincode;
+            if (location !== undefined) teacher.location = location;
             await teacher.save();
         } else {
             teacher = await Teacher.create({
@@ -32,6 +34,8 @@ exports.updateProfile = async (req, res) => {
                 linkedin_profile,
                 whatsapp_no,
                 previous_history,
+                pincode,
+                location
             });
         }
 
@@ -44,28 +48,34 @@ exports.updateProfile = async (req, res) => {
 
 // Browse Jobs (Only jobs from schools verified by admin)
 exports.getJobs = async (req, res) => {
-    const user_id = req.user.id;
+    const { pincode } = req.query;
     try {
-        const teacher = await Teacher.findOne({ where: { user_id } });
-        
+        const schoolWhere = { is_verified_by_admin: true };
+        if (pincode) {
+            schoolWhere.pincode = pincode;
+        }
+
         const jobs = await Job.findAll({
             where: { status: 'active' },
             include: [{
                 model: School,
-                where: { is_verified_by_admin: true },
-                attributes: ['name', 'logo', 'location']
+                where: schoolWhere,
+                attributes: ['name', 'logo', 'location', 'pincode']
             }]
         });
 
-        if (!teacher) {
-            return res.json(jobs.map(j => ({ ...j.toJSON(), hasApplied: false })));
+        // If user is logged in, check which jobs they applied to
+        let appliedJobIds = new Set();
+        if (req.user) {
+            const teacher = await Teacher.findOne({ where: { user_id: req.user.id } });
+            if (teacher) {
+                const teacherApps = await Application.findAll({
+                    where: { teacher_id: teacher.id },
+                    attributes: ['job_id']
+                });
+                appliedJobIds = new Set(teacherApps.map(a => a.job_id));
+            }
         }
-
-        const teacherApps = await Application.findAll({
-            where: { teacher_id: teacher.id },
-            attributes: ['job_id']
-        });
-        const appliedJobIds = new Set(teacherApps.map(a => a.job_id));
 
         const jobsWithStatus = jobs.map(job => ({
             ...job.toJSON(),
@@ -149,17 +159,30 @@ exports.getDashboardData = async (req, res) => {
                 where: { teacher_id: teacher.id }
             });
             
-            // Assuming we match pincode if teacher has it (wait, teacher doesn't have pincode in Teacher model right now..)
-            // We'll just fetch ANY 3 paid verified schools for now if pincode logic isn't strictly matchable.
-            // Ideally we'd match location.
-            nearInstitutions = await School.findAll({
-                where: { 
-                    is_verified_by_admin: true,
-                    has_package: true
-                },
-                limit: 3,
-                order: [['createdAt', 'DESC']]
-            });
+            const schoolWhere = { is_verified_by_admin: true };
+            if (teacher.pincode) {
+                // Try to find schools in same pincode first
+                nearInstitutions = await School.findAll({
+                    where: { ...schoolWhere, pincode: teacher.pincode },
+                    limit: 3,
+                    order: [['createdAt', 'DESC']]
+                });
+            }
+
+            // If none found in same pincode, or less than 3, fill with others
+            if (nearInstitutions.length < 3) {
+                const existingIds = nearInstitutions.map(s => s.id);
+                const moreSchools = await School.findAll({
+                    where: { 
+                        ...schoolWhere,
+                        id: { [Op.notIn]: existingIds },
+                        has_package: true
+                    },
+                    limit: 3 - nearInstitutions.length,
+                    order: [['createdAt', 'DESC']]
+                });
+                nearInstitutions = [...nearInstitutions, ...moreSchools];
+            }
         }
 
         res.json({

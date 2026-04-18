@@ -229,7 +229,7 @@ exports.getAllApplications = async (req, res) => {
                 },
                 {
                     model: Teacher,
-                    attributes: ['full_name', 'skills', 'experience', 'id']
+                    include: [{ model: User, attributes: ['email'] }]
                 }
             ]
         });
@@ -256,5 +256,25 @@ exports.upgradePackage = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error upgrading package' });
+    }
+};
+
+// Find teachers near a pincode
+exports.getNearTeachers = async (req, res) => {
+    const { pincode } = req.query;
+    if (!pincode) {
+        return res.status(400).json({ message: 'Pincode is required' });
+    }
+
+    try {
+        const teachers = await Teacher.findAll({
+            where: { pincode },
+            include: [{ model: User, attributes: ['email'] }],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(teachers);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error fetching nearby teachers' });
     }
 };

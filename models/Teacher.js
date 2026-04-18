@@ -34,6 +34,8 @@ const Teacher = sequelize.define('Teacher', {
   },
   linkedin_profile: { type: DataTypes.STRING, allowNull: true },
   whatsapp_no: { type: DataTypes.STRING, allowNull: true },
+  pincode: { type: DataTypes.STRING, allowNull: true },
+  location: { type: DataTypes.STRING, allowNull: true },
   is_verified_by_admin: { type: DataTypes.BOOLEAN, defaultValue: false },
   previous_history: { type: DataTypes.TEXT, allowNull: true },
 });
