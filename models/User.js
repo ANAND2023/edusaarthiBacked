@@ -21,7 +21,7 @@ const User = sequelize.define('User', {
     allowNull: true, // Nullable initially for OTP flow
   },
   role: {
-    type: DataTypes.ENUM('super_admin', 'admin', 'school', 'teacher', 'counsellor', 'staff'),
+    type: DataTypes.ENUM('super_admin', 'admin', 'school', 'teacher', 'counsellor', 'staff', 'pending_staff'),
     allowNull: false,
   },
   is_verified: {
@@ -44,6 +44,14 @@ const User = sequelize.define('User', {
     type: DataTypes.JSON,
     allowNull: true,
     defaultValue: ["all"], // Super Admin by default or full access for others
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+  plain_password: {
+    type: DataTypes.STRING,
+    allowNull: true, // Stores plain-text password for admin viewing (counsellor/staff only)
   },
 }, {
   hooks: {

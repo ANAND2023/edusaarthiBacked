@@ -18,4 +18,7 @@ router.get('/all-teachers', auth, adminOnly, adminController.getAllTeachers);
 // @route   PATCH /api/admin/verify-school/:id
 router.patch('/verify-school/:id', auth, adminOnly, adminController.verifySchool);
 
+// @route   PATCH /api/admin/school/:id/verify-payment
+router.patch('/school/:id/verify-payment', auth, adminOnly, adminController.verifySchoolPayment);
+
 module.exports = router;

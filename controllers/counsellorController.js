@@ -1,5 +1,6 @@
 const { User, Counsellor, Referral } = require('../models');
 const bcrypt = require('bcryptjs');
+const { sendOTP } = require('../utils/email');
 
 // Create Counsellor (Admin/SuperAdmin)
 exports.createCounsellor = async (req, res) => {
@@ -7,17 +8,29 @@ exports.createCounsellor = async (req, res) => {
 
   try {
     const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
-    }
+    let user;
 
-    // Create user account
-    const user = await User.create({
-      email,
-      password,
-      role: 'counsellor',
-      is_verified: true,
-    });
+    if (existingUser) {
+      if (existingUser.role !== 'pending_staff') {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
+      // Update existing pending_staff user
+      user = existingUser;
+      user.password = password;
+      user.role = 'counsellor';
+      user.is_verified = true;
+      user.plain_password = password;
+      await user.save();
+    } else {
+      // Create new user account (fallback if OTP wasn't used)
+      user = await User.create({
+        email,
+        password,
+        role: 'counsellor',
+        is_verified: true,
+        plain_password: password,
+      });
+    }
 
     // Build profile data from body + uploaded files
     const profileData = {
@@ -38,6 +51,13 @@ exports.createCounsellor = async (req, res) => {
 
     const counsellor = await Counsellor.create(profileData);
 
+    // Send a welcome/verification notification email
+    try {
+      await sendOTP(email, `WELCOME - Your EduSaarthi counsellor account has been created. Login with: Email: ${email} | Password: ${password}`);
+    } catch (mailErr) {
+      console.warn('[createCounsellor] Email notification failed:', mailErr.message);
+    }
+
     res.status(201).json({ message: 'Counsellor created successfully', counsellor });
   } catch (error) {
     console.error('[createCounsellor Error]', error);
@@ -49,7 +69,7 @@ exports.createCounsellor = async (req, res) => {
 exports.getAllCounsellors = async (req, res) => {
   try {
     const counsellors = await Counsellor.findAll({
-      include: [{ model: User, attributes: ['id', 'email', 'createdAt'] }],
+      include: [{ model: User, attributes: ['id', 'email', 'createdAt', 'is_active'] }],
       order: [['createdAt', 'DESC']],
     });
     res.json(counsellors);
@@ -88,22 +108,24 @@ exports.updateCounsellor = async (req, res) => {
   }
 };
 
-// Delete Counsellor
-exports.deleteCounsellor = async (req, res) => {
+// Toggle Counsellor Active/Inactive (replaces delete)
+exports.toggleCounsellorStatus = async (req, res) => {
   const { id } = req.params;
 
   try {
     const counsellor = await Counsellor.findByPk(id);
     if (!counsellor) return res.status(404).json({ message: 'Counsellor not found' });
 
-    // Delete associated user
-    await User.destroy({ where: { id: counsellor.user_id } });
-    await counsellor.destroy();
+    const user = await User.findByPk(counsellor.user_id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json({ message: 'Counsellor deleted successfully' });
+    user.is_active = !user.is_active;
+    await user.save();
+
+    res.json({ message: `Counsellor ${user.is_active ? 'activated' : 'deactivated'} successfully`, is_active: user.is_active });
   } catch (error) {
-    console.error('[deleteCounsellor Error]', error);
-    res.status(500).json({ message: 'Error deleting counsellor' });
+    console.error('[toggleCounsellorStatus Error]', error);
+    res.status(500).json({ message: 'Error toggling counsellor status' });
   }
 };
 
@@ -120,12 +142,31 @@ exports.resetPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     user.password = newPassword;
+    user.plain_password = newPassword; // Store plain text for admin viewing
     await user.save();
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('[resetPassword Error]', error);
     res.status(500).json({ message: 'Error resetting password' });
+  }
+};
+
+// Get Counsellor Password (Admin view)
+exports.getCounsellorPassword = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const counsellor = await Counsellor.findByPk(id);
+    if (!counsellor) return res.status(404).json({ message: 'Counsellor not found' });
+
+    const user = await User.findByPk(counsellor.user_id, { attributes: ['plain_password'] });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({ plain_password: user.plain_password || 'Password not available (set before this feature)' });
+  } catch (error) {
+    console.error('[getCounsellorPassword Error]', error);
+    res.status(500).json({ message: 'Error fetching password' });
   }
 };
 
@@ -214,6 +255,7 @@ exports.getMyReferrals = async (req, res) => {
     res.status(500).json({ message: 'Error fetching referrals' });
   }
 };
+
 // Admin: Get all referrals for a specific counsellor
 exports.getCounsellorReferrals = async (req, res) => {
   const { id } = req.params;

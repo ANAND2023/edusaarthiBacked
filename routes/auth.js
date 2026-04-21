@@ -11,6 +11,14 @@ router.post('/register', authController.register);
 // @desc    Verify the OTP sent to email
 router.post('/verify-otp', authController.verifyOTP);
 
+// @route   POST /api/auth/send-staff-otp
+// @desc    Send OTP to a new staff/counsellor email
+router.post('/send-staff-otp', auth, authController.sendStaffCounsellorOTP);
+
+// @route   POST /api/auth/verify-staff-otp
+// @desc    Verify OTP for a new staff/counsellor email
+router.post('/verify-staff-otp', auth, authController.verifyStaffCounsellorOTP);
+
 // @route   POST /api/auth/set-password
 // @desc    Setup the password after OTP verification
 router.post('/set-password', authController.setPassword);

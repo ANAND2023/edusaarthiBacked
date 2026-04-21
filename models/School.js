@@ -33,6 +33,11 @@ const School = sequelize.define('School', {
   document_urls: { type: DataTypes.ARRAY(DataTypes.STRING), defaultValue: [] },
   has_package: { type: DataTypes.BOOLEAN, defaultValue: false },
   follow_up_notes: { type: DataTypes.TEXT, allowNull: true },
+  subscription_status: {
+    type: DataTypes.ENUM('none', 'pending', 'active'),
+    defaultValue: 'none',
+  },
+  subscription_plan: { type: DataTypes.STRING, allowNull: true },
 });
 
 module.exports = School;

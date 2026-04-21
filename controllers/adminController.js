@@ -91,3 +91,28 @@ exports.verifySchool = async (req, res) => {
     res.status(500).json({ message: 'Error updating school' });
   }
 };
+
+// Verify School Payment (Admin) - Activates subscription
+exports.verifySchoolPayment = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const school = await School.findByPk(id);
+    if (!school) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+
+    if (school.subscription_status !== 'pending') {
+      return res.status(400).json({ message: 'No pending payment request for this school.' });
+    }
+
+    school.subscription_status = 'active';
+    school.has_package = true;
+    await school.save();
+
+    res.json({ message: 'Payment verified! Subscription activated.', school });
+  } catch (error) {
+    console.error('[verifySchoolPayment Error]', error);
+    res.status(500).json({ message: 'Error verifying payment' });
+  }
+};

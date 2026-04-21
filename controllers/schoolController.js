@@ -111,7 +111,7 @@ exports.updateProfile = async (req, res) => {
 
 // Post a Job
 exports.postJob = async (req, res) => {
-  const { title, description, salary, location, requirements, job_type } = req.body;
+  const { title, description, salary, requirements, job_type, experience_required } = req.body;
   const user_id = req.user.id;
 
   try {
@@ -142,9 +142,10 @@ exports.postJob = async (req, res) => {
       title,
       description,
       salary,
-      location,
+      location: school.location, // use school's location
       requirements: reqArray,
       job_type,
+      experience_required: experience_required || 0,
       is_free: isFresher
     });
 
@@ -239,8 +240,8 @@ exports.getAllApplications = async (req, res) => {
         res.status(500).json({ message: 'Error fetching applications' });
     }
 };
-// Upgrade Package (Simulated payment)
-exports.upgradePackage = async (req, res) => {
+// Request Payment / Initiate Subscription (School)
+exports.requestPayment = async (req, res) => {
     const user_id = req.user.id;
     const { planId } = req.body;
 
@@ -248,27 +249,52 @@ exports.upgradePackage = async (req, res) => {
         const school = await School.findOne({ where: { user_id } });
         if (!school) return res.status(404).json({ message: 'Institution not found' });
 
-        school.has_package = true;
-        // In a real app we would store the actual plan details
+        if (school.subscription_status === 'active') {
+            return res.status(400).json({ message: 'Subscription is already active.' });
+        }
+
+        school.subscription_status = 'pending';
+        school.subscription_plan = planId || 'monthly';
         await school.save();
 
-        res.json({ message: `Successfully upgraded to ${planId} plan!`, school });
+        res.json({ message: 'Payment request submitted. Admin will verify and activate your subscription.', school });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error upgrading package' });
+        console.error('[requestPayment Error]', error);
+        res.status(500).json({ message: 'Error submitting payment request' });
     }
 };
 
 // Find teachers near a pincode
 exports.getNearTeachers = async (req, res) => {
-    const { pincode } = req.query;
+    const { pincode, range } = req.query;
     if (!pincode) {
         return res.status(400).json({ message: 'Pincode is required' });
     }
 
     try {
+        let whereClause = { pincode };
+        
+        // Approximate distance filter using pincode prefixes
+        if (range && pincode.length >= 3) {
+            const rangeInt = parseInt(range);
+            if (rangeInt > 5) {
+                // If range > 5km, use prefix matching
+                let prefixLen = 6;
+                if (rangeInt >= 25) prefixLen = 3;
+                else if (rangeInt >= 15) prefixLen = 4;
+                else if (rangeInt >= 10) prefixLen = 5;
+                
+                const prefix = pincode.substring(0, prefixLen);
+                whereClause = {
+                    pincode: {
+                        [Op.like]: `${prefix}%`
+                    }
+                };
+            }
+        }
+
         const teachers = await Teacher.findAll({
-            where: { pincode },
+            where: whereClause,
             include: [{ model: User, attributes: ['email'] }],
             order: [['createdAt', 'DESC']]
         });

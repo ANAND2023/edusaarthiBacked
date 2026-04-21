@@ -1,4 +1,5 @@
 const { User, Staff, Lead } = require('../models');
+const { sendOTP } = require('../utils/email');
 
 // Create Staff (Admin/SuperAdmin)
 exports.createStaff = async (req, res) => {
@@ -6,16 +7,29 @@ exports.createStaff = async (req, res) => {
 
   try {
     const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
-    }
+    let user;
 
-    const user = await User.create({
-      email,
-      password,
-      role: 'staff',
-      is_verified: true,
-    });
+    if (existingUser) {
+      if (existingUser.role !== 'pending_staff') {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
+      // Update existing pending_staff user
+      user = existingUser;
+      user.password = password;
+      user.role = 'staff';
+      user.is_verified = true;
+      user.plain_password = password;
+      await user.save();
+    } else {
+      // Create new user account (fallback if OTP wasn't used)
+      user = await User.create({
+        email,
+        password,
+        role: 'staff',
+        is_verified: true,
+        plain_password: password,
+      });
+    }
 
     const profileData = {
       user_id: user.id,
@@ -34,6 +48,13 @@ exports.createStaff = async (req, res) => {
 
     const staff = await Staff.create(profileData);
 
+    // Send welcome/verification email
+    try {
+      await sendOTP(email, `WELCOME - Your EduSaarthi staff account has been created. Login with: Email: ${email} | Password: ${password}`);
+    } catch (mailErr) {
+      console.warn('[createStaff] Email notification failed:', mailErr.message);
+    }
+
     res.status(201).json({ message: 'Staff created successfully', staff });
   } catch (error) {
     console.error('[createStaff Error]', error);
@@ -45,7 +66,7 @@ exports.createStaff = async (req, res) => {
 exports.getAllStaff = async (req, res) => {
   try {
     const staffList = await Staff.findAll({
-      include: [{ model: User, attributes: ['id', 'email', 'createdAt'] }],
+      include: [{ model: User, attributes: ['id', 'email', 'createdAt', 'is_active'] }],
       order: [['createdAt', 'DESC']],
     });
     res.json(staffList);
@@ -84,21 +105,24 @@ exports.updateStaff = async (req, res) => {
   }
 };
 
-// Delete Staff
-exports.deleteStaff = async (req, res) => {
+// Toggle Staff Active/Inactive (replaces delete)
+exports.toggleStaffStatus = async (req, res) => {
   const { id } = req.params;
 
   try {
     const staff = await Staff.findByPk(id);
     if (!staff) return res.status(404).json({ message: 'Staff not found' });
 
-    await User.destroy({ where: { id: staff.user_id } });
-    await staff.destroy();
+    const user = await User.findByPk(staff.user_id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json({ message: 'Staff deleted successfully' });
+    user.is_active = !user.is_active;
+    await user.save();
+
+    res.json({ message: `Staff ${user.is_active ? 'activated' : 'deactivated'} successfully`, is_active: user.is_active });
   } catch (error) {
-    console.error('[deleteStaff Error]', error);
-    res.status(500).json({ message: 'Error deleting staff' });
+    console.error('[toggleStaffStatus Error]', error);
+    res.status(500).json({ message: 'Error toggling staff status' });
   }
 };
 
@@ -115,12 +139,31 @@ exports.resetPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     user.password = newPassword;
+    user.plain_password = newPassword; // Store plain text for admin viewing
     await user.save();
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('[resetPassword Error]', error);
     res.status(500).json({ message: 'Error resetting password' });
+  }
+};
+
+// Get Staff Password (Admin view)
+exports.getStaffPassword = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const staff = await Staff.findByPk(id);
+    if (!staff) return res.status(404).json({ message: 'Staff not found' });
+
+    const user = await User.findByPk(staff.user_id, { attributes: ['plain_password'] });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({ plain_password: user.plain_password || 'Password not available (set before this feature)' });
+  } catch (error) {
+    console.error('[getStaffPassword Error]', error);
+    res.status(500).json({ message: 'Error fetching password' });
   }
 };
 

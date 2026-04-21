@@ -49,8 +49,9 @@ router.patch('/me/leads/:id', auth, staffOnly, staffController.updateLeadStatus)
 router.post('/', auth, adminOnly, uploadFields, staffController.createStaff);
 router.get('/all', auth, adminOnly, staffController.getAllStaff);
 router.put('/:id', auth, adminOnly, uploadFields, staffController.updateStaff);
-router.delete('/:id', auth, adminOnly, staffController.deleteStaff);
+router.patch('/:id/toggle-status', auth, adminOnly, staffController.toggleStaffStatus);
 router.patch('/:id/password', auth, adminOnly, staffController.resetPassword);
+router.get('/:id/password', auth, adminOnly, staffController.getStaffPassword);
 
 // Admin routes - Lead Management
 router.post('/leads', auth, adminOnly, leadController.createLead);

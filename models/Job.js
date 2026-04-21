@@ -32,6 +32,10 @@ const Job = sequelize.define('Job', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  experience_required: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
   requirements: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     defaultValue: [],

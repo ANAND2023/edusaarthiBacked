@@ -67,6 +67,63 @@ exports.verifyOTP = async (req, res) => {
   }
 };
 
+// Send OTP for Staff / Counsellor creation by Admin
+exports.sendStaffCounsellorOTP = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists with this email.' });
+    }
+    
+    // We can store this OTP temporarily in a cache or just find a dummy user. 
+    // Since we need to verify before creation, let's create a pending user entry.
+    const otp = generateOTP();
+    const otp_expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    let dummyUser = await User.findOne({ where: { email, is_verified: false, role: 'pending_staff' } });
+    if (dummyUser) {
+      dummyUser.otp = otp;
+      dummyUser.otp_expiry = otp_expiry;
+      await dummyUser.save();
+    } else {
+      await User.create({
+        email,
+        role: 'pending_staff',
+        otp,
+        otp_expiry,
+        is_verified: false,
+      });
+    }
+
+    await sendOTP(email, otp);
+    res.json({ message: 'OTP sent to email. Please verify.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error sending OTP' });
+  }
+};
+
+exports.verifyStaffCounsellorOTP = async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const user = await User.findOne({ where: { email, otp, role: 'pending_staff' } });
+    if (!user || user.otp_expiry < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    user.is_verified = true;
+    user.otp = null;
+    user.otp_expiry = null;
+    await user.save();
+
+    res.json({ message: 'Email verified successfully.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error verifying OTP' });
+  }
+};
+
 // Set Password
 exports.setPassword = async (req, res) => {
   const { email, password, thirdPartyId } = req.body;
@@ -85,7 +142,23 @@ exports.setPassword = async (req, res) => {
     }
     await user.save();
 
-    res.json({ message: 'Password set successfully. You can now login.' });
+    // Auto-login after registration
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.json({ 
+      message: 'Password set successfully!',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        is_verified: user.is_verified,
+      }
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error setting password' });
@@ -101,6 +174,11 @@ exports.login = async (req, res) => {
 
     if (!user || !user.is_verified || !user.password) {
       return res.status(400).json({ message: 'Invalid credentials or user not verified' });
+    }
+
+    // Check if user is active (counsellors/staff can be deactivated by admin)
+    if (!user.is_active) {
+      return res.status(403).json({ message: 'You are inactive. Please contact admin.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);

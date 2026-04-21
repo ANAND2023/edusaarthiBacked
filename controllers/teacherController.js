@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 
 // Update Teacher Profile
 exports.updateProfile = async (req, res) => {
-    const { full_name, profile_pic, resume_url, skills, experience, bio, linkedin_profile, whatsapp_no, previous_history, pincode, location } = req.body;
+    const { full_name, profile_pic, resume_url, skills, experience, bio, linkedin_profile, whatsapp_no, previous_history, pincode, location, gender } = req.body;
     const user_id = req.user.id;
 
     try {
@@ -21,6 +21,7 @@ exports.updateProfile = async (req, res) => {
             if (previous_history !== undefined) teacher.previous_history = previous_history;
             if (pincode !== undefined) teacher.pincode = pincode;
             if (location !== undefined) teacher.location = location;
+            if (gender !== undefined) teacher.gender = gender;
             await teacher.save();
         } else {
             teacher = await Teacher.create({
@@ -35,7 +36,8 @@ exports.updateProfile = async (req, res) => {
                 whatsapp_no,
                 previous_history,
                 pincode,
-                location
+                location,
+                gender
             });
         }
 
@@ -186,6 +188,8 @@ exports.getDashboardData = async (req, res) => {
         }
 
         res.json({
+            hasProfile: !!teacher,
+            hasName: !!(teacher && teacher.full_name),
             applications: apps,
             nearInstitutions
         });
@@ -200,9 +204,13 @@ exports.getInstitution = async (req, res) => {
     try {
         const school = await School.findByPk(id, {
             attributes: [
-                'id', 'name', 'logo', 'location', 'address', 'affiliation', 
-                'is_verified_by_admin', 'whatsapp_no', 'principal_name'
-            ]
+                'id', 'name', 'logo', 'location', 'address', 'pincode', 'affiliation', 
+                'is_verified_by_admin', 'whatsapp_no', 'principal_name', 'document_urls'
+            ],
+            include: [{
+                model: User,
+                attributes: ['email']
+            }]
         });
         if (!school) {
             return res.status(404).json({ message: 'Institution not found' });

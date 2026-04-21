@@ -49,8 +49,9 @@ router.get('/me/referrals', auth, counsellorOnly, counsellorController.getMyRefe
 router.post('/', auth, adminOnly, uploadFields, counsellorController.createCounsellor);
 router.get('/all', auth, adminOnly, counsellorController.getAllCounsellors);
 router.put('/:id', auth, adminOnly, uploadFields, counsellorController.updateCounsellor);
-router.delete('/:id', auth, adminOnly, counsellorController.deleteCounsellor);
+router.patch('/:id/toggle-status', auth, adminOnly, counsellorController.toggleCounsellorStatus);
 router.patch('/:id/password', auth, adminOnly, counsellorController.resetPassword);
+router.get('/:id/password', auth, adminOnly, counsellorController.getCounsellorPassword);
 router.get('/:id/referrals', auth, adminOnly, counsellorController.getCounsellorReferrals);
 
 module.exports = router;

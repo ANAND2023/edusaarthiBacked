@@ -39,8 +39,8 @@ router.get('/applications', auth, schoolOnly, schoolController.getAllApplication
 // @desc    Update application status
 router.patch('/application/:id', auth, schoolOnly, schoolController.updateApplicationStatus);
 
-// @route   POST /api/school/upgrade-package
-// @desc    Upgrade subscription package
-router.post('/upgrade-package', auth, schoolOnly, schoolController.upgradePackage);
+// @route   POST /api/school/request-payment
+// @desc    Submit payment request (pending admin verification)
+router.post('/request-payment', auth, schoolOnly, schoolController.requestPayment);
 
 module.exports = router;

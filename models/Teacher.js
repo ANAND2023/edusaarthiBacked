@@ -16,6 +16,10 @@ const Teacher = sequelize.define('Teacher', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  gender: {
+    type: DataTypes.ENUM('Male', 'Female', 'Other'),
+    allowNull: true,
+  },
   resume_url: {
     type: DataTypes.STRING,
     allowNull: true,
